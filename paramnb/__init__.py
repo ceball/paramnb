@@ -128,6 +128,16 @@ class Widgets(param.ParameterizedFunction):
         If true, will continuously update the next_n and/or callback, 
         if any, as a slider widget is dragged.""")
 
+    watchers = param.Dict(default={}, doc="""
+        Registry of functions to call whenever a parameter's widget value 
+        is changed. 
+
+        Functions will be passed the widgets dictionary and a dictionary 
+        of parameter values.
+
+        Dictionary of lists :(
+        """)
+
     def __call__(self, parameterized, **params):
         self.p = param.ParamOverrides(self, params)
         if self.p.initializer:
@@ -163,6 +173,7 @@ class Widgets(param.ParameterizedFunction):
 
         if self.p.on_init:
             self.execute()
+        self._execute_watchers()
 
 
     def _update_trait(self, p_name, p_value, widget=None):
@@ -232,10 +243,13 @@ class Widgets(param.ParameterizedFunction):
             # Style widget to denote error state
             apply_error_style(w, error)
 
-            if not error and not self.p.button:
-                self.execute({p_name: new_values})
-            else:
-                self._changed[p_name] = new_values
+            if not error:
+                self._execute_watchers({p_name: new_values})
+                if not self.p.button:
+                    self.execute({p_name: new_values})
+                else:
+                    self._changed[p_name] = new_values
+
 
         if hasattr(p_obj, 'callbacks'):
             p_obj.callbacks[id(self.parameterized)] = functools.partial(self._update_trait, p_name)
@@ -275,6 +289,20 @@ class Widgets(param.ParameterizedFunction):
         if param_name not in self._widgets:
             self._widgets[param_name] = self._make_widget(param_name)
         return self._widgets[param_name]
+
+
+    def _execute_watchers(self, changed=None):
+        param_values = dict(self.parameterized.get_param_values())
+        del param_values['name']
+
+        if changed is None:
+            changed = param_values # assume all values have changed
+        else:
+            param_values.update(changed)
+        
+        for param in changed:
+            for fn in self.p.watchers.get(param,[]):
+                fn(self._widgets,**param_values)
 
 
     def execute(self, changed={}):
