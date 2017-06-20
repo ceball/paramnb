@@ -132,8 +132,7 @@ class Widgets(param.ParameterizedFunction):
         Registry of functions to call whenever a parameter's widget value 
         is changed. 
 
-        Functions will be passed the widgets dictionary and a dictionary 
-        of parameter values.
+        Functions will be passed the parameterized object.
 
         Dictionary of lists :(
         """)
@@ -302,7 +301,22 @@ class Widgets(param.ParameterizedFunction):
         
         for param in changed:
             for fn in self.p.watchers.get(param,[]):
-                fn(self._widgets,**param_values)
+                fn(self.parameterized)
+
+        for param in param_values:
+            p_obj = self.parameterized.params(param)
+
+            # TODO: as suggested by Philipp, should factor out
+            # converting parameter attributes to ipywidget attributes
+            # e.g. have a registry of functions ;) or more likely some
+            # kind of update method that's used during creation and
+            # here.
+            if hasattr(p_obj, 'get_soft_range'):
+                self._widgets[param].options = p_obj.get_soft_range()
+            elif hasattr(p_obj, 'get_soft_bounds'):
+                min,max=p_obj.get_soft_bounds()
+                self._widgets[param].min = min
+                self._widgets[param].max = max
 
 
     def execute(self, changed={}):
